@@ -1,29 +1,79 @@
 import os
+import re
+import string
+
 rootdir = '/Users/luke/Documents/582/CodingStyles/samples/'
 file_data = dict()
 repositories = ['git']
 
+keywords = [
+  "auto", "break", "case", "char", "const", "continue", "default", "do",
+  "double", "else", "enum", "extern", "float", "for", "goto", "if", "int",
+  "long", "register", "return", "short", "signed", "sizeof", "static",
+  "struct", "switch", "typedef", "union", "unsigned", "void", "volatile",
+  "while"
+]
+
+declaration_keywords = [
+  "auto", "char", "goto", "union",
+  "double", "enum", "extern", "float", "int",
+  "long", "short", "signed", "static", "register",
+  "struct", "typedef", "unsigned", "void", "volatile"
+]
+
+patterns = [
+  (r".*int.*", "TRUE"),
+  (r"/^\s*class\s/", "TRUE"),
+]
+
+class MyVariable:
+  '''represents a declared variable'''
+
+  def __init__(self, name, decl_types):
+    self.name = name
+    self.decl_types = decl_types
+
+  def __str__(self):
+    return str([self.name, self.decl_types])
+
 class MyDocument:
   '''represents a code document'''
 
-  def __init__(self, name, data):
+  def __init__(self, name, lines):
     self.name = name
-    self.data = data
+    self.lines = lines
+    self.declarations = []
 
   def __str__(self):
-    return str([self.name])
+    return str([self.name, self.declarations])
 
-for repo in repositories:
-  file_data[repo] = dict()
-  for subdir, dirs, files in os.walk(rootdir + repo):
-    for file in files:
-      filename = os.path.join(subdir, file)
-      start_index = len(filename) - 2
-      if (filename[start_index:] == ".c"):
-        # print(filename)
-        my_file = open(filename, 'r')
-        new_repo = MyDocument(name=filename, data=my_file.readlines())
-        print(new_repo.name)
-        file_data[repo][filename] = new_repo
-        # print(file_data[my_file])
-        my_file.close()
+def main():
+  parse()
+  pattern_detect()
+
+def parse():
+  for repo in repositories:
+    file_data[repo] = dict()
+    for subdir, dirs, files in os.walk(rootdir + repo):
+      for file in files:
+        filename = os.path.join(subdir, file)
+        start_index = len(filename) - 2
+        if (filename[start_index:] == ".c"):
+          my_file = open(filename, 'r')
+          new_repo = MyDocument(name=filename, lines=my_file.readlines())
+          file_data[repo][filename] = new_repo
+          my_file.close()
+        else:
+          # git 13kb ->7kb
+          os.remove(filename)
+          os.rmdir(filename)
+
+def pattern_detect():
+  for my_file in file_data['git']:
+    for line in file_data['git'][my_file].lines:
+      for item in patterns:
+        line = re.sub(item[0], item[1], line)
+      if line == "TRUE":
+        print(line)
+
+main()
