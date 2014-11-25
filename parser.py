@@ -1,10 +1,15 @@
 import os
 import re
 import string
+from collections import defaultdict
+from nltk.corpus import words
 
 rootdir = '/Users/luke/Documents/582/CodingStyles/samples/'
 file_data = dict()
 repositories = ['git', 'php-src', 'redis', 'scikit-learn']
+decl_words = defaultdict(lambda: 0)
+decl_lines = defaultdict(lambda: list())
+decl_vars = dict()
 
 keywords = [
   "auto", "break", "case", "char", "const", "continue", "default", "do",
@@ -22,19 +27,44 @@ declaration_keywords = [
 ]
 
 patterns = [
-  (r".*int.*", "TRUE"),
-  (r"/^\s*class\s/", "TRUE"),
+  r"(?:\w+\s+)([a-zA-Z_][a-zA-Z0-9]+)",
 ]
 
 class MyVariable:
   '''represents a declared variable'''
 
-  def __init__(self, name, decl_types):
+  def __init__(self, name):
     self.name = name
-    self.decl_types = decl_types
+
+  def snake(self):
+    for word in self.name:
+      if "_" in word:
+        return True
+    return False
+
+  def camel(self):
+    last_index = 0
+    for letter in self.name[1:]:
+      if letter.isupper() and self.name[last_index].islower():
+        return True
+    return False
+
+  def dict_words(self):
+    dict_words = list()
+    if self.snake() or not self.camel():
+      words_list = self.name.split("_")
+      for word_to_test in words_list:
+        if word_to_test in words.words():
+          dict_words.append(word_to_test)
+    return dict_words
 
   def __str__(self):
-    return str([self.name, self.decl_types])
+    return str([
+      self.name,
+      '\t', "Camel: ", self.camel(),
+      '\t', "Snake: ", self.snake(),
+      '\t', "Dict Words: ", self.dict_words(),
+    ])
 
 class MyDocument:
   '''represents a code document'''
@@ -50,6 +80,7 @@ class MyDocument:
 def main():
   parse()
   pattern_detect()
+  process_dict()
 
 # add files to public dict
 # remove empty directories and non-C files
@@ -61,14 +92,16 @@ def parse():
         filename = os.path.join(subdir, my_file)
         start_index = len(filename) - 2
         if (filename[start_index:] == ".c"):
-          my_file = open(filename, 'r')
-          print(filename)
-          new_repo = MyDocument(name=filename, lines=my_file.readlines())
-          file_data[repo][filename] = new_repo
-          my_file.close()
+          try:
+            file_p = open(filename, 'r')
+            new_file = MyDocument(name=filename, lines=file_p.readlines())
+            file_data[repo][my_file] = new_file
+            file_p.close()
+          except ValueError:
+            # print("Skipping a file: " + filename)
+            pass
         else:
-          print(my_file)
-          # git 13kb ->7kb
+          print(filename)
           # os.remove(filename)
           # os.rmdir(filename)
       if len(dirs) == 0 and len(files) == 0:
@@ -76,12 +109,47 @@ def parse():
         os.rmdir(subdir)
 
 def pattern_detect():
-  for file_name in file_data:
-    for my_file in file_data[file_name]:
-      for line in file_data['git'][my_file].lines:
-        for item in patterns:
-          line = re.sub(item[0], item[1], line)
-        if line == "TRUE":
-          print(line)
+  for repo in file_data:
+    for my_file in file_data[repo]:
+      for line in file_data[repo][my_file].lines:
+        for keyword in declaration_keywords:
+          if re.search(keyword, line):
+            my_line = line.split()
+            last_index = 0
+            for word in my_line:
+              if word == "=":
+                add_word_to_dictionaries(line, my_line[last_index - 1])
+              last_index += 1
+
+def add_word_to_dictionaries(my_line, decl_word):
+  # add code for extracting the words before/after the keyword
+  if (re.search(r".*\[([a-zA-Z0-9]+)\].*", decl_word) or
+      re.search(r".*->.*", decl_word) or
+      re.search(r".*\..*", decl_word)):
+    print("array assign: " + decl_word)
+    return
+
+  replacement_chars = ["*", "(", ")", "{", "}", "[", "]"]
+
+  for char in replacement_chars:
+    decl_word = decl_word.replace(char, "")
+  decl_words[decl_word] += 1
+  decl_lines[decl_word].append(my_line)
+  print(decl_word)
+
+def process_dict():
+  sorted_words = sorted(
+    list(decl_words.keys()),
+    key=lambda k: decl_words[k],
+    reverse=True
+  )
+
+  for word in decl_words:
+    decl_vars[word] = MyVariable(word)
+
+  for word in sorted_words[:100]:
+    print(decl_vars[word])
+
+  import pdb; pdb.set_trace()
 
 main()
