@@ -4,7 +4,7 @@ import string
 
 rootdir = '/Users/luke/Documents/582/CodingStyles/samples/'
 file_data = dict()
-repositories = ['git']
+repositories = ['git', 'php-src', 'redis', 'scikit-learn']
 
 keywords = [
   "auto", "break", "case", "char", "const", "continue", "default", "do",
@@ -51,29 +51,37 @@ def main():
   parse()
   pattern_detect()
 
+# add files to public dict
+# remove empty directories and non-C files
 def parse():
   for repo in repositories:
     file_data[repo] = dict()
     for subdir, dirs, files in os.walk(rootdir + repo):
-      for file in files:
-        filename = os.path.join(subdir, file)
+      for my_file in files:
+        filename = os.path.join(subdir, my_file)
         start_index = len(filename) - 2
         if (filename[start_index:] == ".c"):
           my_file = open(filename, 'r')
+          print(filename)
           new_repo = MyDocument(name=filename, lines=my_file.readlines())
           file_data[repo][filename] = new_repo
           my_file.close()
         else:
+          print(my_file)
           # git 13kb ->7kb
-          os.remove(filename)
-          os.rmdir(filename)
+          # os.remove(filename)
+          # os.rmdir(filename)
+      if len(dirs) == 0 and len(files) == 0:
+        print('Empty directory: {}'.format(subdir))
+        os.rmdir(subdir)
 
 def pattern_detect():
-  for my_file in file_data['git']:
-    for line in file_data['git'][my_file].lines:
-      for item in patterns:
-        line = re.sub(item[0], item[1], line)
-      if line == "TRUE":
-        print(line)
+  for file_name in file_data:
+    for my_file in file_data[file_name]:
+      for line in file_data['git'][my_file].lines:
+        for item in patterns:
+          line = re.sub(item[0], item[1], line)
+        if line == "TRUE":
+          print(line)
 
 main()
