@@ -3,16 +3,23 @@ import re
 import string
 from collections import defaultdict
 from nltk.corpus import words
+import nltk
 
 rootdir = '/Users/luke/Documents/582/CodingStyles/samples/'
 file_data = dict()
-repositories = ['git', 'php-src', 'redis', 'scikit-learn']
+repositories = [
+  'git', 'php-src', 'redis', 'scikit-learn',
+  'macvim', 'dynomite', 'Arduino'
+]
 
+# count of all the words
 decl_words = defaultdict(lambda: 0)
+# list of all the lines for each word
 decl_lines = defaultdict(lambda: list())
+# list of all the repos for each word
 decl_repos = defaultdict(lambda: list())
+# variables for each word's featuresets
 decl_vars = dict()
-dict_count = defaultdict(lambda: list())
 
 keywords = [
   "auto", "break", "case", "char", "const", "continue", "default", "do",
@@ -39,42 +46,75 @@ class MyVariable:
   def __init__(self, name):
     self.name = name
 
-  def repos(self):
+  def startup(self):
+    self.constant = self.m_constant()
+    self.snake = self.m_snake()
+    self.camel = self.m_camel()
+    self.repos = self.m_repos()
+    self.dict_words = self.m_dict_words()
+    self.types = self.m_types()
+
+  def m_types(self):
+    types = defaultdict(lambda: 0)
+    for line in decl_lines[self.name]:
+      for my_type in declaration_keywords:
+        if my_type in str(line):
+          print(self.name, my_type)
+          types[my_type] += 1
+    self.types = types
+
+  def m_repos(self):
     my_repos = list()
     for repo in repositories:
       if self.name in decl_repos[repo]:
         my_repos.append(repo)
     return my_repos
 
-  def snake(self):
-    for word in self.name:
-      if "_" in word:
+  def m_constant(self):
+    for letter in self.name:
+      if not ("_" is letter or letter.isupper()):
+        return False
+    return True
+
+  def m_snake(self):
+    for letter in self.name:
+      if "_" in letter:
         return True
     return False
 
-  def camel(self):
+  def m_camel(self):
     last_index = 0
     for letter in self.name[1:]:
       if letter.isupper() and self.name[last_index].islower():
         return True
     return False
 
-  def dict_words(self):
+  def m_dict_words(self):
     dict_words = list()
-    if self.snake() or not self.camel():
+    if self.m_snake() or not self.m_camel():
       words_list = self.name.split("_")
       for word_to_test in words_list:
-        if word_to_test in words.words():
+        if word_to_test in words.words() and len(word_to_test) > 1:
           dict_words.append(word_to_test)
     return dict_words
+
+  def features(self):
+    return {
+      "camel": self.camel,
+      "snake": self.snake,
+      "const": self.constant,
+      "dict": len(self.dict_words),
+      "length": len(self.name)
+    }
 
   def __str__(self):
     return str(
       self.name +
-      "\tCamel: " + str(self.camel()) +
-      "\tSnake: " + str(self.snake()) +
-      "\tDict Words: " + str(self.dict_words()) +
-      "\n\tRepositories: " + str(self.repos())
+      "\tCamel: " + str(self.camel) +
+      "\tSnake: " + str(self.snake) +
+      "\tConstant: " + str(self.constant) +
+      "\n\tDict Words: " + str(self.dict_words) +
+      "\n\tRepositories: " + str(self.repos)
     )
 
 class MyDocument:
@@ -134,12 +174,15 @@ def pattern_detect():
               last_index += 1
 
 def add_word_to_dictionaries(my_line, decl_word, repo):
-  # add code for extracting the words before/after the keyword
-  if (re.search(r".*\[([a-zA-Z0-9]+)\].*", decl_word) or
-      re.search(r".*->.*", decl_word) or
-      re.search(r".*\..*", decl_word)):
-    print("array assign: " + decl_word)
+  # some regular expressions to extract the variable
+  if re.search(r".*\[([a-zA-Z0-9]+)\].*", decl_word):
     return
+  if (re.search(r".*->.*", decl_word) or
+      re.search(r".*\..*", decl_word)):
+    index = decl_word.rfind(">")
+    if index == -1:
+      index = decl_word.rfind(".")
+    decl_word = decl_word[index + 1:]
 
   replacement_chars = ["*", "(", ")", "{", "}", "[", "]", "++", "--"]
 
@@ -151,23 +194,27 @@ def add_word_to_dictionaries(my_line, decl_word, repo):
 
 def process_dict():
   for word in decl_words:
-    decl_vars[word] = MyVariable(word)
     for repo in repositories:
       if word not in decl_repos[repo]:
         decl_repos[repo].append(word)
-        if len(decl_vars[word].dict_words()) > 0:
-          dict_count[repo] = (dict_count[repo][0], dict_count[repo][1] + 1)
+    decl_vars[word] = MyVariable(word)
+    print(word)
 
-  sorted_words = sorted(
-    list(decl_words.keys()),
-    key=lambda k: decl_words[k],
-    reverse=True
-  )
+  # sorted_words = sorted(
+  #   list(decl_words.keys()),
+  #   key=lambda k: decl_words[k],
+  #   reverse=True
+  # )
 
   # for word in sorted_words[:300]:
   #   print(decl_vars[word])
 
 def report():
-  print(dict_count)
+  featuresets = list()
+  for word in list(decl_vars.keys()):
+    featuresets.append((decl_vars[word].features(), decl_vars[word].repos()))
+  train_set, test_set = featuresets[(len(featuresets) / 2):], featuresets[:(len(featuresets) / 2)]
+  classifier = nltk.NaiveBayesClassifier.train(train_set)
+  print("author: " + str(nltk.classify.accuracy(classifier, test_set)))
 
-main()
+parse()
