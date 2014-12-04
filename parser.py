@@ -6,7 +6,7 @@ from nltk.corpus import words
 import nltk
 
 rootdir = '/Users/luke/Documents/582/CodingStyles/samples/'
-file_data = dict()
+# file_data = dict()
 repositories = [
   'git', 'php-src', 'redis', 'scikit-learn',
   'macvim', 'dynomite', 'Arduino'
@@ -14,10 +14,8 @@ repositories = [
 
 # count of all the words
 decl_words = defaultdict(lambda: 0)
-# list of all the lines for each word
+# list of all the lines for each word with corresponding repo
 decl_lines = defaultdict(lambda: list())
-# list of all the repos for each word
-decl_repos = defaultdict(lambda: list())
 # variables for each word's featuresets
 decl_vars = dict()
 
@@ -51,7 +49,8 @@ class MyVariable:
     self.snake = self.m_snake()
     self.camel = self.m_camel()
     self.repos = self.m_repos()
-    self.dict_words = self.m_dict_words()
+    # self.dict_words = self.m_dict_words()
+    self.dict_words = [""]
     self.types = self.m_types()
 
   def m_types(self):
@@ -65,8 +64,9 @@ class MyVariable:
 
   def m_repos(self):
     my_repos = list()
-    for repo in repositories:
-      if self.name in decl_repos[repo]:
+    for line in decl_lines[self.name]:
+      repo = line[1]
+      if repo not in my_repos:
         my_repos.append(repo)
     return my_repos
 
@@ -130,7 +130,7 @@ class MyDocument:
 
 def main():
   parse()
-  pattern_detect()
+  # pattern_detect()
   process_dict()
   report()
 
@@ -138,7 +138,7 @@ def main():
 # remove empty directories and non-C files
 def parse():
   for repo in repositories:
-    file_data[repo] = dict()
+    # file_data[repo] = dict()
     for subdir, dirs, files in os.walk(rootdir + repo):
       for my_file in files:
         filename = os.path.join(subdir, my_file)
@@ -146,8 +146,9 @@ def parse():
         if (filename[start_index:] == ".c"):
           try:
             file_p = open(filename, 'r')
-            new_file = MyDocument(name=filename, lines=file_p.readlines())
-            file_data[repo][my_file] = new_file
+            pattern_detect(repo, file_p.readlines())
+            # new_file = MyDocument(name=filename, lines=file_p.readlines())
+            # file_data[repo][my_file] = new_file
             file_p.close()
           except ValueError:
             # print("Skipping a file: " + filename)
@@ -160,18 +161,16 @@ def parse():
         print('Empty directory: {}'.format(subdir))
         os.rmdir(subdir)
 
-def pattern_detect():
-  for repo in file_data:
-    for my_file in file_data[repo]:
-      for line in file_data[repo][my_file].lines:
-        for keyword in declaration_keywords:
-          if re.search(keyword, line):
-            my_line = line.split()
-            last_index = 0
-            for word in my_line:
-              if word == "=":
-                add_word_to_dictionaries(line, my_line[last_index - 1], repo)
-              last_index += 1
+def pattern_detect(repo, lines):
+  for line in lines:
+    for keyword in declaration_keywords:
+      if re.search(keyword, line):
+        my_line = line.split()
+        last_index = 0
+        for word in my_line:
+          if word == "=":
+            add_word_to_dictionaries(line, my_line[last_index - 1], repo)
+          last_index += 1
 
 def add_word_to_dictionaries(my_line, decl_word, repo):
   # some regular expressions to extract the variable
@@ -194,9 +193,6 @@ def add_word_to_dictionaries(my_line, decl_word, repo):
 
 def process_dict():
   for word in decl_words:
-    for repo in repositories:
-      if word not in decl_repos[repo]:
-        decl_repos[repo].append(word)
     decl_vars[word] = MyVariable(word)
     print(word)
 
@@ -216,5 +212,3 @@ def report():
   train_set, test_set = featuresets[(len(featuresets) / 2):], featuresets[:(len(featuresets) / 2)]
   classifier = nltk.NaiveBayesClassifier.train(train_set)
   print("author: " + str(nltk.classify.accuracy(classifier, test_set)))
-
-parse()
