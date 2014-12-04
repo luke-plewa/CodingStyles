@@ -34,10 +34,6 @@ declaration_keywords = [
   "struct", "typedef", "unsigned", "void", "volatile"
 ]
 
-patterns = [
-  r"(?:\w+\s+)([a-zA-Z_][a-zA-Z0-9]+)",
-]
-
 class MyVariable:
   '''represents a declared variable'''
 
@@ -58,7 +54,6 @@ class MyVariable:
     for line in decl_lines[self.name]:
       for my_type in declaration_keywords:
         if my_type in str(line):
-          print(self.name, my_type)
           types[my_type] += 1
     self.types = types
 
@@ -117,20 +112,8 @@ class MyVariable:
       "\n\tRepositories: " + str(self.repos)
     )
 
-class MyDocument:
-  '''represents a code document'''
-
-  def __init__(self, name, lines):
-    self.name = name
-    self.lines = lines
-    self.declarations = []
-
-  def __str__(self):
-    return str([self.name, self.declarations])
-
 def main():
   parse()
-  # pattern_detect()
   process_dict()
   report()
 
@@ -138,7 +121,6 @@ def main():
 # remove empty directories and non-C files
 def parse():
   for repo in repositories:
-    # file_data[repo] = dict()
     for subdir, dirs, files in os.walk(rootdir + repo):
       for my_file in files:
         filename = os.path.join(subdir, my_file)
@@ -147,8 +129,6 @@ def parse():
           try:
             file_p = open(filename, 'r')
             pattern_detect(repo, file_p.readlines())
-            # new_file = MyDocument(name=filename, lines=file_p.readlines())
-            # file_data[repo][my_file] = new_file
             file_p.close()
           except ValueError:
             # print("Skipping a file: " + filename)
@@ -195,15 +175,6 @@ def process_dict():
   for word in decl_words:
     decl_vars[word] = MyVariable(word)
     print(word)
-
-  # sorted_words = sorted(
-  #   list(decl_words.keys()),
-  #   key=lambda k: decl_words[k],
-  #   reverse=True
-  # )
-
-  # for word in sorted_words[:300]:
-  #   print(decl_vars[word])
 
 def report():
   featuresets = list()
